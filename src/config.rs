@@ -7,7 +7,7 @@ pub struct Config {
 
 impl Config {
     pub fn parse(interface_indexes: &Vec<u32>) -> Result<Config, String> {
-        let matches = App::new("rscanner")
+        let matches = App::new("onion-scanner")
             .version("0.1")
             .author("onionpsy <onionpsy@protonmail.com>")
             .about("ARP Lan scanner")

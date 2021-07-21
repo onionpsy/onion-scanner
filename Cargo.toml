@@ -1,5 +1,5 @@
 [package]
-name = "rscanner"
+name = "onion-scanner"
 version = "0.1.0"
 authors = ["onionpsy <onionpsy@protonmail.com>"]
 edition = "2018"
