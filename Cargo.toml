@@ -1,0 +1,15 @@
+[package]
+name = "rscanner"
+version = "0.1.0"
+authors = ["onionpsy <onionpsy@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+pnet = "0.28.0"
+ipnet = "2.3.1"
+colored = "2"
+clap = "3.0.0-beta.2"
+
+[target.'cfg(windows)'.dependencies]
+# winapi = "0.3.8" # This will not work because the size of c_void defaults to 0.
+winapi = { version = "0.3.8", features = [ "std" ] }
