@@ -24,17 +24,23 @@ fn main() {
         std::process::exit(0)
     });
 
-    let interface = &interfaces
-        .iter()
-        .find(|i| i.index == config.interface_index);
+    let interface = interfaces
+        .into_iter()
+        .find(|i| i.index == config.interface_index)
+        .unwrap();
 
-    
-    match interface {
-        Some(interface) => {
-            println!("Using interface {:?} {}.", &interface.name, &interface.ips[0]);
+    /*let interface = match interface {
+        Some(i) => {
+            println!("Using interface {:?} {}.", i.name, i.ips[0]);
+            i
         },
-        None => panic!("Error while finding the default interface."),
-    }
+        None => panic!("Error while finding the default interface.")
+    };*/
 
-    scanner::run(&interface.unwrap());
+    let host = scanner::host::Host {
+        interface: interface
+    };
+
+
+    scanner::run(&host);
 }
