@@ -80,7 +80,7 @@ fn get_source_ip(interface: &NetworkInterface) -> Ipv4Addr {
 pub fn send_tcp_packet(tx: &mut dyn DataLinkSender, host: &Host, target_ip: &Ipv4Addr, target_mac: &MacAddr) -> Result<()> {
     let source_ip = &host.ip().addr();
 
-    let mut packet_buffer = [0u8; ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE + TCP_BUFFER_SIZE];
+    let mut packet_buffer = [0u8; ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE + TCP_BUFFER_SIZE + 16];
 
     let mut ethernet = MutableEthernetPacket::new(&mut packet_buffer[..ETH_BUFFER_SIZE]).unwrap();
     ethernet.set_source(host.interface.mac.unwrap());
