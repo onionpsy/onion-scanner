@@ -24,12 +24,7 @@ use std::collections::HashMap;
 
 use host::{Host};
 
-pub struct ScanningResult {
-    pub devices: Vec<device::Device>
-}
-
 pub fn run(host: &Host) {
-    
     let mut config = Config::default();
     config.read_timeout = Some(Duration::from_millis(200));
     config.write_timeout = Some(Duration::from_secs(3));
@@ -44,18 +39,7 @@ pub fn run(host: &Host) {
         host.ip().prefix_len().to_string().color("red")
     );
 
-
-    /*let test = device::Device {
-        index: 1,
-        name: String::from(","),
-        ip: Ipv4Addr::new(172, 22, 22, 1),
-        mac: MacAddr::new(0x98, 0x9d, 0x5d, 0xbe, 0xcc, 0x78)
-    };
-
-    let _ = fingerprint::detect_os(&mut *tx, host, &test.ip, &test.mac);*/
-
     let (thread_tx, thread_rx) = mpsc::channel();
-
     scan(&mut *tx, &host, &thread_tx);
 
     let _ = read_and_display(&mut *rx, &mut *tx, host, &thread_rx);
@@ -64,17 +48,13 @@ pub fn run(host: &Host) {
 }
 
 pub fn scan(tx: &mut dyn DataLinkSender, host: &Host, thread_tx: &mpsc::Sender<Result<()>>) {
-    /*let _ = crossbeam::scope(|scope| {
-        scope.spawn(move |_| {
-            for ip in host.ip().hosts() {
-                let _ = scan_ip(&mut *tx, &host.interface, ip);
-                thread::sleep(Duration::from_millis(200));
-            }
-            let _ = thread_tx.send(Ok(()));
-        });
-    });*/
+    let _ = network::send_arp_packet(&mut *tx, &host.interface, &Ipv4Addr::new(172, 22, 22, 52));
+    return;
+
+
     for ip in host.ip().hosts() {
-        let _ = scan_ip(&mut *tx, &host.interface, ip);
+        if ip == host.ip().addr() { continue; }
+        let _ = network::send_arp_packet(&mut *tx, &host.interface, &ip);
         //thread::sleep(Duration::from_millis(200));
     }
     //let _ = thread_tx.send(Ok(()));
@@ -87,23 +67,36 @@ pub fn read_and_display(
     thread_rx: &mpsc::Receiver<Result<()>>
 ) -> Result<()> {
 
-    let devices: HashMap<&MacAddr, &device::Device> = HashMap::new();
+    let mut devices: HashMap<MacAddr, device::Device> = HashMap::new();
 
     loop {
         match network::read_packets(&mut *rx) {
             Some(received_packet) => {
-                let device = received_packet.handle(&devices, &host);
+                let device = received_packet.handle(&host);
                 match device {
-                    Some(device) => {
-                        let _ = fingerprint::detect_os(&mut *tx, host, &device.ip, &device.mac);
-                        println!("{}", device.summarize());
-                        std::process::exit(0);
+                    Some(mut device) => {
+                        let mac = &device.mac;
+                        if devices.contains_key(mac) {
+                            if !device.os.is_none() {
+                                &devices.insert(device.mac, device);
+                            }
+                            
+                        } else {
+                            if !device.tcp_sent {
+                                println!("send to {}", device.ip);
+                                let _ = network::send_tcp_packet(tx, &host, &device);
+                                device.tcp_sent = true;
+                            }
+
+
+                            &devices.insert(device.mac, device);
+                        }
                     },
-                    _ => {}
+                    _ => ()
                 };
 
             },
-            _ => {}
+            _ => ()
         }
         
         match thread_rx.try_recv() {
@@ -111,9 +104,4 @@ pub fn read_and_display(
             _ => {}
         }
     }
-}
-
-
-pub fn scan_ip(tx: &mut dyn DataLinkSender, interface: &NetworkInterface, target_ip: Ipv4Addr) -> Result<()> {
-    network::send_arp_packet(&mut *tx, interface, &target_ip)
 }

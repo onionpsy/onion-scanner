@@ -9,7 +9,7 @@ pub struct Host {
 impl Host {
     pub fn ip(&self) -> Ipv4Net {
         match self.interface.ips[0].ip() {
-            IpAddr::V4(ip4) => Ipv4Net::new(ip4, 24),
+            IpAddr::V4(ip4) => Ipv4Net::new(ip4, 24), // !TODO cidr
             IpAddr::V6(_) => unimplemented!()
         }.unwrap()
     }

@@ -29,14 +29,6 @@ fn main() {
         .find(|i| i.index == config.interface_index)
         .unwrap();
 
-    /*let interface = match interface {
-        Some(i) => {
-            println!("Using interface {:?} {}.", i.name, i.ips[0]);
-            i
-        },
-        None => panic!("Error while finding the default interface.")
-    };*/
-
     let host = scanner::host::Host {
         interface: interface
     };

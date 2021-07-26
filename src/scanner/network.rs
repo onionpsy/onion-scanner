@@ -15,6 +15,7 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 
 use crate::scanner::host::{Host};
 use crate::scanner::received_packet::{ReceivedPacket};
+use crate::scanner::device::{Device};
 
 const TCP_BUFFER_SIZE: usize = 20;
 const ETH_BUFFER_SIZE: usize = 14;
@@ -25,14 +26,14 @@ const IPV4_BUFFER_SIZE: usize = 20;
 pub fn read_packets(rx: &mut dyn DataLinkReceiver) -> Option<ReceivedPacket> {
     match rx.next() {
         Ok(frame) => {
-            let packet = EthernetPacket::new(frame).unwrap();
+            let packet = EthernetPacket::new(&frame).unwrap();
             match packet.get_ethertype() {
                 EtherTypes::Arp => {
-                    let arp = ReceivedPacket::Arp(ArpPacket::new(&frame[MutableEthernetPacket::minimum_packet_size()..]).unwrap());
+                    let arp = ReceivedPacket::Arp(packet);
                     return Some(arp)
                 },
                 EtherTypes::Ipv4 => {
-                    let tcp = ReceivedPacket::Tcp(TcpPacket::new(&frame[MutableEthernetPacket::minimum_packet_size()..]).unwrap());
+                    let tcp = ReceivedPacket::Tcp(packet);
                     return Some(tcp)
                 },
                 _ => return None
@@ -77,45 +78,44 @@ fn get_source_ip(interface: &NetworkInterface) -> Ipv4Addr {
     }
 }
 
-pub fn send_tcp_packet(tx: &mut dyn DataLinkSender, host: &Host, target_ip: &Ipv4Addr, target_mac: &MacAddr) -> Result<()> {
+pub fn send_tcp_packet(tx: &mut dyn DataLinkSender, host: &Host, device: &Device) -> Result<()> {
     let source_ip = &host.ip().addr();
+    const PAYLOAD_SIZE: usize = 12;
 
-    let mut packet_buffer = [0u8; ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE + TCP_BUFFER_SIZE + 16];
+    let mut packet_buffer = [0u8; ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE + TCP_BUFFER_SIZE + PAYLOAD_SIZE];
 
     let mut ethernet = MutableEthernetPacket::new(&mut packet_buffer[..ETH_BUFFER_SIZE]).unwrap();
     ethernet.set_source(host.interface.mac.unwrap());
-    ethernet.set_destination(*target_mac);
+    ethernet.set_destination(device.mac);
     ethernet.set_ethertype(EtherTypes::Ipv4);
 
-    let mut ipv4 = MutableIpv4Packet::new(&mut packet_buffer[ETH_BUFFER_SIZE..IPV4_BUFFER_SIZE + ETH_BUFFER_SIZE]).unwrap(); // 20
+    let mut ipv4 = MutableIpv4Packet::new(&mut packet_buffer[ETH_BUFFER_SIZE..]).unwrap(); // 20
     ipv4.set_version(4);
+    ipv4.set_total_length((ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE + TCP_BUFFER_SIZE - 2) as u16);
     ipv4.set_header_length(5);
-    ipv4.set_identification(1234);
+    ipv4.set_identification(rand::random::<u16>());
     ipv4.set_flags(Ipv4Flags::DontFragment);
     ipv4.set_ttl(128);
     ipv4.set_next_level_protocol(IpNextHeaderProtocols::Tcp);
     ipv4.set_source(*source_ip);
-    ipv4.set_destination(*target_ip);
+    ipv4.set_destination(device.ip);
     let checksum = pnet::packet::ipv4::checksum(&ipv4.to_immutable());
     ipv4.set_checksum(checksum);
 
     let mut tcp = MutableTcpPacket::new(&mut packet_buffer[IPV4_BUFFER_SIZE + ETH_BUFFER_SIZE..]).unwrap(); // 20
     tcp.set_source(rand::random::<u16>());
-    tcp.set_destination(1234);
-
-    //tcp.set_destination(rand::random::<u16>());
-
+    tcp.set_destination(rand::random::<u16>());
     tcp.set_flags(TcpFlags::SYN); // SYN-SENT
-    tcp.set_window(4015);
+    tcp.set_window(64240);
     tcp.set_data_offset(8);
     tcp.set_urgent_ptr(0);
     tcp.set_sequence(rand::random::<u32>());
-    let checksum = tcp::ipv4_checksum(&tcp.to_immutable(), &source_ip, target_ip);
+    tcp.set_options(&[TcpOption::mss(1460), TcpOption::nop(), TcpOption::wscale(8), TcpOption::nop(), TcpOption::nop(), TcpOption::sack_perm()]);
+    let checksum = tcp::ipv4_checksum(&tcp.to_immutable(), source_ip, &device.ip);
     tcp.set_checksum(checksum);
 
     return match tx.send_to(&packet_buffer, None) {
         Some(p) => {
-            println!("TCP packet sent {:?}", p.unwrap());
             Ok(())
         },
         None => panic!("Error sending TCP packet")
