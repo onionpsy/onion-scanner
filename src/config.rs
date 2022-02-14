@@ -2,7 +2,8 @@ use clap::{Arg, App};
 
 pub struct Config {
     pub interface_index: u32,
-    pub verbose: u32
+    pub verbose: u32,
+    pub timeout: u32
 }
 
 impl Config {
@@ -18,11 +19,17 @@ impl Config {
                 .about("Choose the network interface")
                 .required(true)
             )
-            .arg(Arg::new("v")
+            .arg(Arg::new("verbose")
                 .short('v')
                 .multiple_occurrences(true)
                 .takes_value(true)
                 .about("Sets the level of verbosity")
+            )
+            .arg(Arg::new("timeout") 
+                .short('t')
+                .multiple_occurrences(false)
+                .takes_value(true)
+                .about("Scan timeout, in s")
             )
             .get_matches();
         
@@ -39,8 +46,14 @@ impl Config {
             return Err(format!("{} is not a valid interface.\nUse one of these {:?}", &interface, interface_indexes)) // TODO show iface name/ip
         }
 
+        let timeout = matches.occurrences_of("timeout") as u32;
+
         Ok(Config {
             interface_index: interface,
+            timeout: match timeout {
+                1..=300 => timeout,
+                _ => 30
+            },
             verbose: match verbosity {
                 0..=2 => verbosity,
                 _ => 2

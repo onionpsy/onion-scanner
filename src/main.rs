@@ -37,5 +37,5 @@ fn main() {
     };
 
 
-    scanner::run(&host);
+    scanner::run(&host, config.timeout);
 }

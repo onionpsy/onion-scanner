@@ -56,7 +56,7 @@ impl Device {
         // let name = &self.name[..self.name.chars().map(|c| c.len_utf8()).take(10).sum()];
 
         format!(" {: <12}  {: <15}  {: <20}",
-            self.mac.to_string().color("yellow"),
+            self.mac.to_string().color("purple"),
             self.ip.to_string().color("green"),
             match &self.os {
                 Some(os) => {
@@ -64,7 +64,7 @@ impl Device {
                         Some(version) => version.color("cyan"),
                         None => "".color("")
                     };
-                    format!("{} {}", os.family, v).color("red")
+                    format!("{} {}", os.family, v).color("cyan")
                 },
                 None => "None".color("cyan")
             }

@@ -8,7 +8,6 @@ extern crate pnet;
 extern crate ipnet;
 extern crate colored;
 
-use std::time::Duration;
 use std::io::{Result};
 use pnet::datalink::{DataLinkSender, DataLinkReceiver, Config, Channel};
 use std::thread;
@@ -16,10 +15,11 @@ use colored::*;
 use pnet::util::MacAddr;
 use std::collections::HashMap;
 use received_packet::{ ReceivedPacket, ReceivedPacketTrait};
+use std::time::{Duration, SystemTime};
 
 use host::{Host};
 
-pub fn run(host: &Host) {
+pub fn run(host: &Host, timeout: u32) {
     let mut config = Config::default();
     config.read_timeout = Some(Duration::from_millis(200));
     config.write_timeout = Some(Duration::from_secs(3));
@@ -29,14 +29,15 @@ pub fn run(host: &Host) {
         Err(e) => panic!("Error {}", e)
     };
 
-    println!("Scanning network {}/{}",
+    println!("Scanning network {}/{}\r\n",
         host.ip().network().to_string().color("red"),
         host.ip().prefix_len().to_string().color("red")
     );
 
     scan(&mut *tx, &host);
 
-    let _ = read_and_display(&mut *rx, &mut *tx, host);
+    let _ = read_and_display(&mut *rx, &mut *tx, host, timeout);
+    println!("Scan finished");
 }
 
 pub fn scan(tx: &mut dyn DataLinkSender, host: &Host) {
@@ -50,10 +51,13 @@ pub fn scan(tx: &mut dyn DataLinkSender, host: &Host) {
 pub fn read_and_display(
     rx: &mut dyn DataLinkReceiver,
     tx: &mut dyn DataLinkSender,
-    host: &Host
+    host: &Host,
+    timeout: u32
 ) -> Result<()> {
 
     let mut devices: HashMap<MacAddr, device::Device> = HashMap::new();
+
+    let now = SystemTime::now();
 
     loop {
         if let Ok(frame) = rx.next() {
@@ -87,5 +91,13 @@ pub fn read_and_display(
                 None => {}
             };
         }
+
+
+        // Stop scan after a certain amount of time
+        if now.elapsed().expect("Error fetching system time") > Duration::from_secs(u64::from(timeout)) {
+            break;
+        }
     }
+
+    Ok(())
 }
