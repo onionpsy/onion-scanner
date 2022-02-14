@@ -6,8 +6,8 @@ Simple ARP network scan with passive OS detection
 
 ## Usage
 
-1. Compile the project using `cargo build
-2. `.\onion_scanner.exe -i 3` where `i <number>` is your network card number
+1. Compile the project using `cargo build`
+2. `.\onion_scanner.exe -i 3` where `-i <number>` is your network card number
 
 ## TODO
 
