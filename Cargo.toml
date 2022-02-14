@@ -1,6 +1,6 @@
 [package]
 name = "onion_scanner"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["onionpsy <onionpsy@protonmail.com>"]
 edition = "2018"
 
