@@ -1,0 +1,16 @@
+os,version,ttl,wsize
+FreeBSD,,64,65535
+Linux,,64,32120
+Linux,,64,5840
+Linux,,64,16384
+Linux,Android/ChromeOS,64,5720
+Windows,XP,128,65535
+Windows,XP,128,16384
+Windows,7,64,1380
+Windows,Vista/7/10/Server,128,8192
+Unix,HP-UX,64,32768
+MacOS,,64,65535
+Cisco,,255,4128
+Linux,,64,0
+Windows,,128,0
+Solaris,,255,0

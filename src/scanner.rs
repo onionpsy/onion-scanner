@@ -8,19 +8,14 @@ extern crate pnet;
 extern crate ipnet;
 extern crate colored;
 
-use std::net::{Ipv4Addr, IpAddr};
 use std::time::Duration;
 use std::io::{Result};
-use pnet::datalink::{DataLinkSender, DataLinkReceiver, Config, Channel, NetworkInterface};
+use pnet::datalink::{DataLinkSender, DataLinkReceiver, Config, Channel};
 use std::thread;
-use ipnet::{Ipv4Net};
 use colored::*;
-use std::sync::mpsc;
 use pnet::util::MacAddr;
-use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
-use pnet::packet::tcp::{MutableTcpPacket, TcpFlags, TcpOption, TcpPacket};
-use pnet::packet::ipv4::{Ipv4Flags, Ipv4Packet, MutableIpv4Packet};
 use std::collections::HashMap;
+use received_packet::{ ReceivedPacket, ReceivedPacketTrait};
 
 use host::{Host};
 
@@ -39,69 +34,58 @@ pub fn run(host: &Host) {
         host.ip().prefix_len().to_string().color("red")
     );
 
-    let (thread_tx, thread_rx) = mpsc::channel();
-    scan(&mut *tx, &host, &thread_tx);
+    scan(&mut *tx, &host);
 
-    let _ = read_and_display(&mut *rx, &mut *tx, host, &thread_rx);
-
-    println!("Scan finished");
+    let _ = read_and_display(&mut *rx, &mut *tx, host);
 }
 
-pub fn scan(tx: &mut dyn DataLinkSender, host: &Host, thread_tx: &mpsc::Sender<Result<()>>) {
-    let _ = network::send_arp_packet(&mut *tx, &host.interface, &Ipv4Addr::new(172, 22, 22, 52));
-    return;
-
-
+pub fn scan(tx: &mut dyn DataLinkSender, host: &Host) {
     for ip in host.ip().hosts() {
         if ip == host.ip().addr() { continue; }
         let _ = network::send_arp_packet(&mut *tx, &host.interface, &ip);
-        //thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(20));
     }
-    //let _ = thread_tx.send(Ok(()));
 }
 
 pub fn read_and_display(
     rx: &mut dyn DataLinkReceiver,
     tx: &mut dyn DataLinkSender,
-    host: &Host,
-    thread_rx: &mpsc::Receiver<Result<()>>
+    host: &Host
 ) -> Result<()> {
 
     let mut devices: HashMap<MacAddr, device::Device> = HashMap::new();
 
     loop {
-        match network::read_packets(&mut *rx) {
-            Some(received_packet) => {
-                let device = received_packet.handle(&host);
-                match device {
-                    Some(mut device) => {
-                        let mac = &device.mac;
-                        if devices.contains_key(mac) {
-                            if !device.os.is_none() {
-                                &devices.insert(device.mac, device);
+        if let Ok(frame) = rx.next() {
+            match network::read_packets(&frame) {
+                Some(ReceivedPacket::Arp(packet)) => {
+                    let device = packet.handle(&host);
+                    match device {
+                        Some(device) => {
+                            if !devices.contains_key(&device.mac) {
+                                let _ = network::send_tcp_packet(tx, host, &device);
+                                devices.insert(device.mac, device);
                             }
-                            
-                        } else {
-                            if !device.tcp_sent {
-                                println!("send to {}", device.ip);
-                                let _ = network::send_tcp_packet(tx, &host, &device);
-                                device.tcp_sent = true;
+                        },
+                        None => {}
+                    }
+                },
+                Some(ReceivedPacket::TcpIp(packet)) => {
+                    let device = packet.handle(&host);
+                    match device {
+                        Some(device) => {
+                            let mac = device.mac;
+                            if (!devices.contains_key(&mac) || devices[&mac].os.is_none()) && device.os.is_some() {
+                                devices.insert(device.mac, device);
+                                println!("{}", devices[&mac].summarize());
                             }
 
-
-                            &devices.insert(device.mac, device);
-                        }
-                    },
-                    _ => ()
-                };
-
-            },
-            _ => ()
-        }
-        
-        match thread_rx.try_recv() {
-            Ok(_) => return Ok(()),
-            _ => {}
+                        },
+                        None => {}
+                    }
+                },
+                None => {}
+            };
         }
     }
 }

@@ -9,37 +9,42 @@ use pnet::datalink::{NetworkInterface};
 use std::net::{Ipv4Addr, IpAddr};
 use pnet::packet::{Packet, MutablePacket};
 use std::io::{Result};
-use pnet::datalink::{DataLinkSender, DataLinkReceiver};
+use pnet::datalink::{DataLinkSender};
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
 
 use crate::scanner::host::{Host};
-use crate::scanner::received_packet::{ReceivedPacket};
 use crate::scanner::device::{Device};
+use crate::scanner::received_packet::{ArpReceivedPacket, TcpIpReceivedPacket, ReceivedPacket};
 
-const TCP_BUFFER_SIZE: usize = 20;
-const ETH_BUFFER_SIZE: usize = 14;
-const ARP_BUFFER_SIZE: usize = 28;
-const IPV4_BUFFER_SIZE: usize = 20;
+pub const TCP_BUFFER_SIZE: usize = 20;
+pub const ETH_BUFFER_SIZE: usize = 14;
+pub const ARP_BUFFER_SIZE: usize = 28;
+pub const IPV4_BUFFER_SIZE: usize = 20;
 
-
-pub fn read_packets(rx: &mut dyn DataLinkReceiver) -> Option<ReceivedPacket> {
-    match rx.next() {
-        Ok(frame) => {
-            let packet = EthernetPacket::new(&frame).unwrap();
-            match packet.get_ethertype() {
-                EtherTypes::Arp => {
-                    let arp = ReceivedPacket::Arp(packet);
-                    return Some(arp)
-                },
-                EtherTypes::Ipv4 => {
-                    let tcp = ReceivedPacket::Tcp(packet);
-                    return Some(tcp)
-                },
-                _ => return None
-            }
+pub fn read_packets<'a>(frame: &'a [u8]) -> Option<ReceivedPacket<'a>> {
+    let eth = EthernetPacket::new(&frame).unwrap();
+    match eth.get_ethertype() {
+        EtherTypes::Arp => {
+            Some(ReceivedPacket::Arp(ArpReceivedPacket {
+                eth: eth,
+                arp: ArpPacket::new(&frame[ETH_BUFFER_SIZE..]).unwrap() 
+           }))
         },
-        Err(e) => panic!("{}", e)
+        EtherTypes::Ipv4 => {
+            match TcpPacket::new(&frame[ETH_BUFFER_SIZE + IPV4_BUFFER_SIZE..]) {
+                Some(tcp) => {
+                    Some(ReceivedPacket::TcpIp(TcpIpReceivedPacket {
+                        eth: eth,
+                        tcp: tcp,
+                        ipv4: Ipv4Packet::new(&frame[ETH_BUFFER_SIZE..]).unwrap()
+                    }))
+                },
+                _ => { println!("Cannot decrypt TCP packet"); None }
+            }
+
+        },
+        _ => { None }
     }
 }
 
@@ -115,7 +120,7 @@ pub fn send_tcp_packet(tx: &mut dyn DataLinkSender, host: &Host, device: &Device
     tcp.set_checksum(checksum);
 
     return match tx.send_to(&packet_buffer, None) {
-        Some(p) => {
+        Some(_p) => {
             Ok(())
         },
         None => panic!("Error sending TCP packet")

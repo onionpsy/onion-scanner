@@ -1,1 +1,3 @@
-//mod crate::scanner::host;
+pub trait Summary {
+    fn summarize(&self) -> String;
+}

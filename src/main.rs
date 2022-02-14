@@ -1,10 +1,14 @@
 extern crate pnet;
 
+#[macro_use]
+extern crate lazy_static;
+
 use pnet::{datalink};
 use colored::*;
 
 pub mod config;
 pub mod scanner;
+
 
 fn main() {
     let interfaces = datalink::interfaces();
@@ -20,8 +24,7 @@ fn main() {
         .collect::<Vec<u32>>();
 
     let config = config::Config::parse(&interface_indexes).unwrap_or_else(|e| {
-        eprintln!("{} {}\n", "error".to_string().color("red"), e);
-        std::process::exit(0)
+        panic!("{} {}\n", "error".to_string().color("red"), e);
     });
 
     let interface = interfaces
